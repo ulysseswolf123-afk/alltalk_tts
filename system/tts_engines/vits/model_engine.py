@@ -267,6 +267,7 @@ class tts_class:
         model_files = ["model_file.pth", "model.pth"]
         
         found_any_models = False
+        model_name = None
         for subfolder in models_folder.iterdir():
             if subfolder.is_dir():
                 model_name = subfolder.name
