@@ -1,5 +1,5 @@
 {
-  "first_start_model": "en_GB-jenny_dioco-medium",
+  "first_start_model": "en_US-ljspeech-high",
   "models": [
     {
       "model_name": "ar_JO-kareem-low",

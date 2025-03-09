@@ -41,9 +41,8 @@ Functions:
 - **is_running_in_colab**: Detects if the script is running in Google Colab.
 - **is_running_in_docker**: Detects if the script is running in a Docker container.
 - **download_file**: Downloads a file with a progress bar and retry logic.
-- **setup_piper**: Sets up the Piper TTS engine and downloads associated files.
-- **setup_vits**: Sets up the VITS TTS engine and downloads associated files.
-- **setup_xtts**: Sets up the XTTS TTS engine and downloads associated files.
+- **setup_tts**: Sets up the TTS engine passed as argument.
+- **download_tts_model**: Downloads the TTS engine's associated files.
 - **update_tts_engines**: Updates the configuration to reflect the selected TTS engine.
 - **set_firstrun_model_false**: Marks the initial setup as complete in the configuration.
 - **warning_message**: Displays post-setup warnings or tips for the user.
@@ -65,6 +64,7 @@ import zipfile
 import requests
 from tqdm import tqdm
 from inputimeout import inputimeout, TimeoutOccurred
+from urllib.parse import urlsplit
 
 # Setting the module search path:
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.resolve()))
@@ -103,6 +103,11 @@ def download_file(url: str, dest_path: str, timeout: int = 30, retries: int = 3)
     Raises:
         ValueError: If the downloaded file size does not match the expected size.
     """
+    # Don't re-download if file already exists (which is the case when using Docker):
+    if Path(dest_path).exists():
+        print(f"File already exists at: {dest_path}. Skipping download.")
+        return True
+
     progress_bar = None
     for attempt in range(1, retries + 1):
         try:
@@ -166,41 +171,44 @@ def download_file(url: str, dest_path: str, timeout: int = 30, retries: int = 3)
     # Return False if all attempts fail
     return False
 
-def setup_piper():
-    """Download base piper files"""
-    os.makedirs(this_dir / 'models/piper', exist_ok=True)
-    os.makedirs(this_dir / 'models/xtts', exist_ok=True)
-    download_file("https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/ljspeech/high/en_US-ljspeech-high.onnx?download=true",
-                  this_dir / "models/piper/en_US-ljspeech-high.onnx")
-    download_file("https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/ljspeech/high/en_US-ljspeech-high.onnx.json?download=true.json",
-                  this_dir / "models/piper/en_US-ljspeech-high.onnx.json")
+def unzip_compressed_files(downloaded_files: []):
+    for file in downloaded_files:
+        _, file_extension = os.path.splitext(file)
+        if file_extension == '.zip':
+            with zipfile.ZipFile(file, 'r') as zip_ref:
+                zip_ref.extractall(file.parent)
+            os.remove(file)
 
-def setup_vits():
-    """Download base vits files"""
-    os.makedirs(this_dir / 'models/vits', exist_ok=True)
-    os.makedirs(this_dir / 'models/xtts', exist_ok=True)
-    zip_path = this_dir / 'models/vits/vits.zip'
-    download_file("https://coqui.gateway.scarf.sh/v0.6.1_models/tts_models--en--vctk--vits.zip", zip_path)
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(this_dir / 'models/vits')
-    os.remove(zip_path)
+def setup_tts(tts_model: str, on_download_completed = unzip_compressed_files):
+    download_tts_model(tts_model, on_download_completed)
+    update_tts_engines(tts_model)
+    set_firstrun_model_false()
 
-def setup_xtts():
-    """Download base xtts files"""
-    os.makedirs(this_dir / 'models/xtts/xttsv2_2.0.3', exist_ok=True)
-    base_url = "https://huggingface.co/coqui/XTTS-v2/resolve/v2.0.3/"
-    files = [
-        "LICENSE.txt",
-        "README.md",
-        "config.json",
-        "model.pth",
-        "dvae.pth",
-        "mel_stats.pth",
-        "speakers_xtts.pth",
-        "vocab.json"
-    ]
-    for each_file in files:
-        download_file(base_url + each_file + "?download=true", this_dir / f"models/xtts/xttsv2_2.0.3/{each_file}")
+def download_tts_model(tts_model: str, on_download_completed = None):
+    with open(os.path.join(this_dir, "system", "tts_engines", tts_model, "available_models.json")) as f:
+        available_models = json.load(f)
+        first_start_model = available_models["first_start_model"]
+        model = next(m for m in available_models["models"] if m["model_name"] == first_start_model)
+
+        # folder_path: Special case for vits: firstrun.py expects the ZIP download directly in the model folder.
+        # When firstrun.py unzips the file, the correct folder will be created automatically.
+        folder_path = "" if tts_model == "vits" else model.get("folder_path", "")
+        files_to_download = model.get("files_to_download", []) or [model.get("github_rls_url", None)]
+        target_dir = this_dir / f"models/{tts_model}/{folder_path}"
+
+        if type(files_to_download) == dict:
+            files_to_download = list(files_to_download.values())
+
+        downloaded_files = []
+        for file_download in files_to_download:
+            urlpath = urlsplit(file_download).path
+            file_name = os.path.basename(urlpath)
+            target_file = target_dir / file_name
+            download_file(file_download, target_file)
+            downloaded_files.append(target_file)
+
+        if on_download_completed:
+            on_download_completed(downloaded_files)
 
 def update_tts_engines(engine):
     """Set engine to users choice that matches the download"""
@@ -282,18 +290,9 @@ args = parser.parse_args()
 if config.firstrun_model:
     # Handle command-line argument for tts_model
     if args.tts_model:
-        if args.tts_model == 'piper':
-            setup_piper()
-            update_tts_engines('piper')
-            set_firstrun_model_false()
-        elif args.tts_model == 'vits':
-            setup_vits()
-            update_tts_engines('vits')
-            set_firstrun_model_false()
-        elif args.tts_model == 'xtts':
-            setup_xtts()
-            update_tts_engines('xtts')
-            set_firstrun_model_false()
+        if args.tts_model in {'piper', 'vits', 'xtts'}:
+            print(f"[{branding}TTS] Setting up model '{args.tts_model}'.")
+            setup_tts(args.tts_model)
         elif args.tts_model == 'none':
             print(f"[{branding}TTS] No TTS model setup requested.")
         print(f"[{branding}TTS] Setup completed for {args.tts_model}. Exiting.")
@@ -302,9 +301,7 @@ if config.firstrun_model:
     # Check for Colab or Docker environment first
     if is_running_in_colab() or is_running_in_docker():
         print(f"[{branding}TTS] Detected Colab/Docker environment - automatically selecting Piper")
-        setup_piper()
-        update_tts_engines('piper')
-        set_firstrun_model_false()
+        setup_tts('piper')
         warning_message()
         sys.exit()
 
@@ -363,20 +360,10 @@ if config.firstrun_model:
         warning_message()
 
     if user_choice is None or user_choice.lower() != 'own':
-        if selected_model['name'] == 'piper':
-            setup_piper()
-            update_tts_engines('piper')
-        elif selected_model['name'] == 'vits':
-            setup_vits()
-            update_tts_engines('vits')
-        elif selected_model['name'] == 'xtts':
-            setup_xtts()
-            update_tts_engines('xtts')
-
-        print(f"[{branding}TTS] {selected_model['name']} model downloaded and configuration updated successfully.")
-        # Set firstrun_model to false
-        set_firstrun_model_false()
-        warning_message()
-        sys.exit()
+        if selected_model['name'] in {'piper', 'vits', 'xtts'}:
+            setup_tts(selected_model['name'])
+            print(f"[{branding}TTS] {selected_model['name']} model downloaded and configuration updated successfully.")
+            warning_message()
+            sys.exit()
 else:
     sys.exit()
