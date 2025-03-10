@@ -19,9 +19,45 @@ ENV WITH_UI=true
 WORKDIR ${ALLTALK_DIR}
 
 ##############################################################################
+# Download TTS models:
+##############################################################################
+COPY system/tts_engines/piper/available_models.json system/tts_engines/piper/
+COPY system/tts_engines/vits/available_models.json system/tts_engines/vits/
+COPY system/tts_engines/xtts/available_models.json system/tts_engines/xtts/
+RUN <<EOR
+    available_models="system/tts_engines/${TTS_MODEL}/available_models.json"
+    first_start_model=$(cat ${available_models} | jq -r '.first_start_model')
+    model=$(cat ${available_models} | jq ".models[] | select(.model_name==\"${first_start_model}\")")
+    folder_path=$( echo "${model}" | jq -r '.folder_path // empty' )
+    files_to_download=$( echo "${model}" | jq '.files_to_download[]?' )
+    github_rls_url=$( echo "${model}" | jq '.github_rls_url // empty' )
+
+    # Special case for vits: firstrun.py expects the ZIP download directly in the model folder.
+    # When firstrun.py unzips the file, the correct folder will be created automatically.
+    if [[ "$TTS_MODEL" == "vits" ]]; then
+      folder_path=""
+    fi
+
+    # Merging both fields:
+    files_to_download="${files_to_download} ${github_rls_url}"
+    target_dir="models/${TTS_MODEL}/${folder_path}"
+
+    echo "$files_to_download" | xargs -n 1 curl --create-dirs --output-dir "${target_dir}" -LO
+EOR
+
+##############################################################################
+# Download all RVC models:
+##############################################################################
+COPY system/tts_engines/rvc_files.json system/tts_engines/
+RUN <<EOR
+  rvc_files=$( jq -r '.[]' system/tts_engines/rvc_files.json )
+  echo "$rvc_files" | xargs -n 1 curl --create-dirs --output-dir models/rvc_base -LO
+EOR
+
+##############################################################################
 # Install python dependencies (cannot use --no-deps because requirements are not complete)
 ##############################################################################
-COPY system/config system/config
+COPY system/config/*.whl system/config/
 COPY system/requirements/requirements_standalone.txt system/requirements/requirements_standalone.txt
 COPY system/requirements/requirements_parler.txt system/requirements/requirements_parler.txt
 ENV PIP_CACHE_DIR=${ALLTALK_DIR}/pip_cache
@@ -141,15 +177,6 @@ RUN mkdir -p /root/.triton/autotune
 # Enable deepspeed for all models:
 ##############################################################################
 RUN find . -name model_settings.json -exec sed -i -e 's/"deepspeed_enabled": false/"deepspeed_enabled": true/g' {} \;
-
-##############################################################################
-# Download all RVC models:
-##############################################################################
-RUN <<EOR
-  jq -r '.[]' system/tts_engines/rvc_files.json > /tmp/rvc_files.txt
-  xargs -n 1 curl --create-dirs --output-dir models/rvc_base -LO < /tmp/rvc_files.txt
-  rm -f /tmp/rvc_files.txt
-EOR
 
 ##############################################################################
 # Start alltalk:
