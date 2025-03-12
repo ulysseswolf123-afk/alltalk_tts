@@ -53,7 +53,7 @@ following optional arguments:
     - Example: `docker-start.sh --voices /my/voices/dir`
 - `--rvc-voices` similar to voices, this option lets you pick the folder containing the [RVC models](https://github.com/erew123/alltalk_tts/wiki/RVC-(Retrieval%E2%80%90based-Voice-Conversion)).
     - Example: `docker-start.sh --rvc_voices /my/rvc/voices/dir`
-- `--no-ui` allows you to not expose port 7852 for the gradio interface and sets `launch_gradio` to `false`.
+- `--no-ui` allows you to not expose port 7852 for the gradio interface and sets `launch_gradio` and `gradio_interface` to `false`.
 - `--with-multi-engine-manager` enables the use of the [multi engine manager (MEM)](https://github.com/erew123/alltalk_tts/wiki/Multi-Engine-Manager)
     which allows for more parallel requests. By default, one TTS engine is started. Optionally, you can pass the
     file path of a JSON file which can be a subset of `mem_config.json` with more fine-grained configuration options.
@@ -66,8 +66,27 @@ following optional arguments:
 - Since the above commands only address the most important options, you might pass additional arbitrary docker arguments
   to the `docker-start.sh`.
 
-Of course, like any other Docker image, you can also directly use `docker run` directly and use `docker-start.sh` 
-as an inspiration.
+Of course, like for any other Docker image, you can also directly use `docker run` directly and use 
+[docker-start.sh](https://github.com/erew123/alltalk_tts/blob/alltalkbeta/docker-start.sh) as an inspiration.
+
+### Using environment variables for setting config values
+Instead of using config JSON files, there are config settings that can be directly set using environment (ENV) variables 
+when starting the application. This is also what is used internally in `docker-start.sh`.
+
+Since `docker-start.sh` allows to pass arbitrary params, it can also be used to set env variables, e.g:
+
+```
+./docker-start.sh -e ALLTALK_BRANDING="My Brand " -e ALLTALK_API_PORT_NUMBER=9876
+```
+
+or when using Docker directly:
+```
+docker run -e ALLTALK_BRANDING="My Brand " -e ALLTALK_API_PORT_NUMBER=9876 ...
+```
+
+Consult [docker_default_confignew.json](https://github.com/erew123/alltalk_tts/blob/alltalkbeta/docker_default_confignew.json) 
+and [docker_default_mem_config.json](https://github.com/erew123/alltalk_tts/blob/alltalkbeta/docker_default_mem_config.json) 
+for a list of all available env variables.
 
 
 ## Building your own images (advanced)

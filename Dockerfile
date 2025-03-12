@@ -13,8 +13,18 @@ ARG ALLTALK_DIR=/opt/alltalk
 
 ENV GRADIO_SERVER_NAME="0.0.0.0"
 
-ENV ENABLE_MULTI_ENGINE_MANAGER=false
-ENV WITH_UI=true
+# Switch for using the multi engine manager:
+ENV ALLTALK_ENABLE_MULTI_ENGINE_MANAGER=false
+
+# Default settings used in docker_default_confignew.json:
+ENV ALLTALK_DELETE_OUTPUT_WAVS="1"
+ENV ALLTALK_GRADIO_INTERFACE=true
+ENV ALLTALK_RVC_ENABLED=true
+ENV ALLTALK_RVC_F0METHOD="rmvpe"
+
+# Default settings used in docker_default_mem_config.json:
+ENV ALLTALK_MEM_AUTO_START_ENGINES=1
+ENV ALLTALK_MEM_MAX_INSTANCES=1
 
 WORKDIR ${ALLTALK_DIR}
 
@@ -118,21 +128,28 @@ RUN <<EOR
 #!/usr/bin/env bash
 source ~/.bashrc
 
-# Enabling or disabling UI:
-jq ".launch_gradio = \$WITH_UI" docker_default_config.json > docker_default_config.json.tmp
-mv docker_default_config.json.tmp docker_default_config.json
+replace_env_vars() {
+  echo "{}" > /tmp/empty.json
+  jq "\$( cat \$1 ) | del(.. | select(. == null))" /tmp/empty.json > \$1.tmp
+  mv \$1.tmp \$1
+  rm -f /tmp/empty.json
+}
 
-# Merging config from docker_confignew.json into confignew.json:
-jq -s '.[0] * .[1] * .[2]' confignew.json docker_default_config.json docker_confignew.json  > confignew.json.tmp
-mv confignew.json.tmp confignew.json
+merge_json_files() {
+  # Merging JSON config with docker default values followed by values set on startup:
+  jq -s '.[0] * .[1] * .[2]' \$1 docker_default_\$1 docker_\$1  > \$1.tmp
+  mv \$1.tmp \$1
+}
+
+replace_env_vars docker_default_confignew.json
+merge_json_files confignew.json
 
 conda activate alltalk
 
-if [ "\$ENABLE_MULTI_ENGINE_MANAGER" = true ] ; then
+if [ "\$ALLTALK_ENABLE_MULTI_ENGINE_MANAGER" = true ] ; then
   echo "Starting alltalk using multi engine manager"
-  # Merging config from docker_mem_config.json into mem_config.json:
-  jq -s '.[0] * .[1] * .[2]' mem_config.json docker_default_mem_config.json docker_mem_config.json  > mem_config.json.tmp
-  mv mem_config.json.tmp mem_config.json
+  replace_env_vars docker_default_mem_config.json
+  merge_json_files mem_config.json
   python tts_mem.py
 else
   echo "Starting alltalk"
