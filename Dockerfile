@@ -9,8 +9,6 @@ ENV TTS_MODEL=$TTS_MODEL
 ARG DEEPSPEED_VERSION=0.16.2
 ENV DEEPSPEED_VERSION=$DEEPSPEED_VERSION
 
-ARG ALLTALK_DIR=/opt/alltalk
-
 ENV GRADIO_SERVER_NAME="0.0.0.0"
 
 # Switch for using the multi engine manager:
@@ -59,10 +57,7 @@ EOR
 # Download all RVC models:
 ##############################################################################
 COPY system/tts_engines/rvc_files.json system/tts_engines/
-RUN <<EOR
-  rvc_files=$( jq -r '.[]' system/tts_engines/rvc_files.json )
-  echo "$rvc_files" | xargs -n 1 curl --create-dirs --output-dir models/rvc_base -LO
-EOR
+RUN jq -r '.[]' system/tts_engines/rvc_files.json | xargs -n 1 curl --create-dirs --output-dir models/rvc_base -LO
 
 ##############################################################################
 # Install python dependencies (cannot use --no-deps because requirements are not complete)
@@ -74,7 +69,7 @@ ENV PIP_CACHE_DIR=${ALLTALK_DIR}/pip_cache
 RUN <<EOR
     conda activate alltalk
 
-    mkdir ${ALLTALK_DIR}/pip_cache
+    mkdir -p ${ALLTALK_DIR}/pip_cache
     pip install --no-cache-dir --cache-dir=${ALLTALK_DIR}/pip_cache -r system/requirements/requirements_standalone.txt
     pip install --no-cache-dir --cache-dir=${ALLTALK_DIR}/pip_cache --upgrade gradio==4.32.2
 
@@ -144,7 +139,7 @@ merge_json_files() {
 replace_env_vars docker_default_confignew.json
 merge_json_files confignew.json
 
-conda activate alltalk
+source ${ALLTALK_DIR}/conda_env.sh
 
 if [ "\$ALLTALK_ENABLE_MULTI_ENGINE_MANAGER" = true ] ; then
   echo "Starting alltalk using multi engine manager"
@@ -160,13 +155,13 @@ EOF
 #!/usr/bin/env bash
 source ~/.bashrc
 export TRAINER_TELEMETRY=0
-conda activate alltalk
+source ${ALLTALK_DIR}/conda_env.sh
 python finetune.py
 EOF
     cat << EOF > start_diagnostics.sh
 #!/usr/bin/env bash
 source ~/.bashrc
-conda activate alltalk
+source ${ALLTALK_DIR}/conda_env.sh
 python diagnostics.py
 EOF
     chmod +x start_alltalk.sh
@@ -174,21 +169,20 @@ EOF
     chmod +x start_diagnostics.sh
 EOR
 
-COPY . .
+COPY --chown=alltalk:alltalk . .
 
 ##############################################################################
 # Create script to execute firstrun.py and run it:
 ##############################################################################
 RUN echo $'#!/usr/bin/env bash \n\
 source ~/.bashrc \n\
-conda activate alltalk \n\
+source ${ALLTALK_DIR}/conda_env.sh \n\
 python ./system/config/firstrun.py $@' > ./start_firstrun.sh
 
 RUN chmod +x start_firstrun.sh
 RUN ./start_firstrun.sh --tts_model $TTS_MODEL
 
-RUN mkdir -p ${ALLTALK_DIR}/outputs
-RUN mkdir -p /root/.triton/autotune
+RUN mkdir -p ${ALLTALK_DIR}/outputs ${ALLTALK_DIR}/.triton/autotune
 
 ##############################################################################
 # Enable deepspeed for all models:
