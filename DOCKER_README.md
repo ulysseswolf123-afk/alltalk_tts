@@ -54,6 +54,7 @@ following optional arguments:
 - `--rvc-voices` similar to voices, this option lets you pick the folder containing the [RVC models](https://github.com/erew123/alltalk_tts/wiki/RVC-(Retrieval%E2%80%90based-Voice-Conversion)).
     - Example: `docker-start.sh --rvc_voices /my/rvc/voices/dir`
 - `--no-ui` allows you to not expose port 7852 for the gradio interface and sets `launch_gradio` and `gradio_interface` to `false`.
+- `--auto-cleanup` periodically deletes all generated WAV files that are older than 1min.
 - `--with-multi-engine-manager` enables the use of the [multi engine manager (MEM)](https://github.com/erew123/alltalk_tts/wiki/Multi-Engine-Manager)
     which allows for more parallel requests. By default, one TTS engine is started. Optionally, you can pass the
     file path of a JSON file which can be a subset of `mem_config.json` with more fine-grained configuration options.

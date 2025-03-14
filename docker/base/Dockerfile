@@ -24,6 +24,7 @@ RUN <<EOR
     apt-get upgrade -y
     apt-get install --no-install-recommends -y \
       espeak-ng \
+      cron \
       curl \
       wget \
       jq \

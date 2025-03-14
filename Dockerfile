@@ -139,9 +139,19 @@ merge_json_files() {
 replace_env_vars docker_default_confignew.json
 merge_json_files confignew.json
 
+# Script for deleting WAV files that are older than 1 minute:
+cat << EOF2 > ${ALLTALK_DIR}/cleanup-wavs.sh
+#!/usr/bin/env bash
+[ \"\$ALLTALK_AUTO_CLEANUP\" = \"true\" ] && find ${ALLTALK_DIR}/outputs -type f -name "*.wav" -mmin +1 -exec rm {} \;
+EOF2
+chmod u+x ${ALLTALK_DIR}/cleanup-wavs.sh
+
+# Starting the cron job:
+cron
+
 source ${ALLTALK_DIR}/conda_env.sh
 
-if [ "\$ALLTALK_ENABLE_MULTI_ENGINE_MANAGER" = true ] ; then
+if [ "\$ALLTALK_ENABLE_MULTI_ENGINE_MANAGER" = "true" ] ; then
   echo "Starting alltalk using multi engine manager"
   replace_env_vars docker_default_mem_config.json
   merge_json_files mem_config.json
@@ -171,6 +181,25 @@ EOR
 
 COPY --chown=alltalk:alltalk . .
 
+RUN mkdir -p ${ALLTALK_DIR}/outputs ${ALLTALK_DIR}/.triton/autotune
+
+##############################################################################
+# Enable deepspeed for all models:
+##############################################################################
+RUN find . -name model_settings.json -exec sed -i -e 's/"deepspeed_enabled": false/"deepspeed_enabled": true/g' {} \;
+
+##############################################################################
+# Cronjob running every minute to delete output WAV files:
+##############################################################################
+USER root
+RUN <<EOR
+    echo "* * * * * ${ALLTALK_DIR}/cleanup-wavs.sh" > /etc/cron.d/cleanup-wavs
+    crontab -u alltalk /etc/cron.d/cleanup-wavs
+    chmod u+s /usr/sbin/cron
+EOR
+
+USER alltalk
+
 ##############################################################################
 # Create script to execute firstrun.py and run it:
 ##############################################################################
@@ -182,14 +211,7 @@ python ./system/config/firstrun.py $@' > ./start_firstrun.sh
 RUN chmod +x start_firstrun.sh
 RUN ./start_firstrun.sh --tts_model $TTS_MODEL
 
-RUN mkdir -p ${ALLTALK_DIR}/outputs ${ALLTALK_DIR}/.triton/autotune
-
-##############################################################################
-# Enable deepspeed for all models:
-##############################################################################
-RUN find . -name model_settings.json -exec sed -i -e 's/"deepspeed_enabled": false/"deepspeed_enabled": true/g' {} \;
-
 ##############################################################################
 # Start alltalk:
 ##############################################################################
-ENTRYPOINT ["sh", "-c", "./start_alltalk.sh"]
+ENTRYPOINT ["bash", "-c", "./start_alltalk.sh"]
