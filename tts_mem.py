@@ -55,7 +55,7 @@ from collections import deque
 from datetime import datetime, timedelta
 from requests.exceptions import RequestException
 from werkzeug.serving import make_server, WSGIRequestHandler
-from config import AlltalkMultiEngineManagerConfig
+from config import AlltalkMultiEngineManagerConfig, AlltalkConfig
 from flask_cors import CORS, cross_origin
 from flask import Flask, request, jsonify, send_from_directory, send_file
 
@@ -76,7 +76,6 @@ should_exit = threading.Event()
 # Global variable to hold the monitor thread
 stop_monitor = threading.Event()
 monitor = None
-WITH_UI = os.getenv("WITH_UI", True).lower() == 'true'
 
 flask_app = Flask(__name__)
 CORS(flask_app)
@@ -84,6 +83,7 @@ flask_app.config['OUTPUT_FOLDER'] = str(Path(os.getcwd()) / 'outputs')
 
 # Load configuration at the start of the script
 config = AlltalkMultiEngineManagerConfig.get_instance()
+USE_GRADIO = AlltalkConfig.get_instance().gradio_interface
 
 def signal_handler(signum, frame):
     print("[AllTalk MEM] Interrupt received, shutting down...")
@@ -125,7 +125,7 @@ print(f"[AllTalk MEM] \033[93m     MEM is not intended for production use and\03
 print(f"[AllTalk MEM] \033[93m      there is NO support being offered on MEM\033[00m")
 print(f"[AllTalk MEM]")
 print(f"[AllTalk MEM] \033[94mAPI/Queue   :\033[00m \033[92mhttp://127.0.0.1:{config.api_server_port}/api/tts-generate\033[00m")
-if WITH_UI:
+if USE_GRADIO:
     print(f"[AllTalk MEM] \033[94mGradio Light:\033[00m \033[92mhttp://127.0.0.1:{config.gradio_interface_port}\033[00m")
     print(f"[AllTalk MEM] \033[94mGradio Dark :\033[00m \033[92mhttp://127.0.0.1:{config.gradio_interface_port}?__theme=dark\033[00m")
 print(f"[AllTalk MEM]")
@@ -1492,7 +1492,7 @@ def auto_start_engines():
 # Main execution
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
-    if WITH_UI:
+    if USE_GRADIO:
         print("[AllTalk MEM] Starting gradio...")
         interface = create_gradio_interface()
         # Start the Gradio interface

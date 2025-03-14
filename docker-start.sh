@@ -3,8 +3,8 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 . ${SCRIPT_DIR=}/docker/variables.sh
 
-WITH_UI=true
-ENABLE_MULTI_ENGINE_MANAGER=false
+ALLTALK_GRADIO_INTERFACE=true
+ALLTALK_ENABLE_MULTI_ENGINE_MANAGER=false
 MULTI_ENGINE_MANAGER_CONFIG=
 DOCKER_TAG=latest-xtts
 DOCKER_REPOSITORY=erew123
@@ -26,10 +26,10 @@ while [ "$#" -gt 0 ]; do
       shift
       ;;
     --no-ui)
-      WITH_UI=false
+      ALLTALK_GRADIO_INTERFACE=false
       ;;
     --with-multi-engine-manager)
-      ENABLE_MULTI_ENGINE_MANAGER=true
+      ALLTALK_ENABLE_MULTI_ENGINE_MANAGER=true
       if [ -n "$2" ] && ! [[ $2 =~ ^--.* ]]; then
         MULTI_ENGINE_MANAGER_CONFIG=$2
         shift
@@ -74,8 +74,8 @@ if [[ -n $RVC_VOICES ]]; then
   DOCKER_ARGS+=( -v ${RVC_VOICES}:${ALLTALK_DIR}/models/rvc_voices )
 fi
 
-if [ "$WITH_UI" = true ] ; then
-    if [ "$ENABLE_MULTI_ENGINE_MANAGER" = true ] ; then
+if [ "ALLTALK_GRADIO_INTERFACE" = true ] ; then
+    if [ "$ALLTALK_ENABLE_MULTI_ENGINE_MANAGER" = true ] ; then
       DOCKER_ARGS+=( -p 7500:7500 )
     else
       DOCKER_ARGS+=( -p 7852:7852 )
@@ -87,8 +87,10 @@ if [[ -n $MULTI_ENGINE_MANAGER_CONFIG ]]; then
 fi
 
 # Pass env variables:
-DOCKER_ARGS+=( -e ENABLE_MULTI_ENGINE_MANAGER=${ENABLE_MULTI_ENGINE_MANAGER} )
-DOCKER_ARGS+=( -e WITH_UI=${WITH_UI} )
+DOCKER_ARGS+=( -e ALLTALK_ENABLE_MULTI_ENGINE_MANAGER=${ALLTALK_ENABLE_MULTI_ENGINE_MANAGER} )
+DOCKER_ARGS+=( -e ALLTALK_GRADIO_INTERFACE=${ALLTALK_GRADIO_INTERFACE} )
+DOCKER_ARGS+=( -e ALLTALK_LAUNCH_GRADIO=${ALLTALK_GRADIO_INTERFACE} )
+
 
 docker run \
   --rm \
