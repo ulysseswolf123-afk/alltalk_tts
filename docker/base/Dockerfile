@@ -14,7 +14,7 @@ ENV CUDA_DOCKER_ARCH=all
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV CONDA_AUTO_UPDATE_CONDA="false"
 
-ENV ALLTALK_DIR=/opt/alltalk
+ENV ALLTALK_DIR=/home/alltalk
 
 ##############################################################################
 # Installation/Basic Utilities
@@ -31,6 +31,10 @@ RUN <<EOR
 
     apt-get clean && rm -rf /var/lib/apt/lists/*
 EOR
+
+# Create a non-root user and switch to it for security
+RUN useradd -ms /bin/bash alltalk
+USER alltalk
 
 ##############################################################################
 # Create a conda environment and install dependencies:
@@ -77,4 +81,17 @@ RUN <<EOR
     echo "Failed to install pip dependencies: $RESULT"
     exit 1
   fi
+EOR
+
+RUN <<EOR
+# See https://gist.github.com/xkortex/5ae49d7e6e969405bd2c3152a949c1f1
+cat << EOF > ${ALLTALK_DIR}/conda_env.sh
+#!/usr/bin/env bash
+source ~/.bashrc
+__conda_setup="\$('/opt/conda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+eval "\$__conda_setup"
+unset __conda_setup
+
+conda activate alltalk
+EOF
 EOR

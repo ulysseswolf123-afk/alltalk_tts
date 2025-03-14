@@ -7,6 +7,7 @@ cd $SCRIPT_DIR
 
 DOCKER_TAG=latest
 DOCKER_REPOSITORY=erew123
+ALLTALK_DIR=/home/alltalk
 
 # Parse arguments
 while [ "$#" -gt 0 ]; do
@@ -67,6 +68,5 @@ docker run \
   -it \
   --gpus=all \
   --name deepspeed \
-  --build-arg DOCKER_TAG=$DOCKER_TAG \
-  -v $SCRIPT_DIR/build:/deepspeed \
+  -v $SCRIPT_DIR/build:${ALLTALK_DIR}/build \
   ${DOCKER_REPOSITORY}alltalk_deepspeed:${DOCKER_TAG}

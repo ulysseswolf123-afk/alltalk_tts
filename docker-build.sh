@@ -102,7 +102,6 @@ docker buildx \
   build \
   --progress=plain \
   --build-arg TTS_MODEL=$TTS_MODEL \
-  --build-arg ALLTALK_DIR=$ALLTALK_DIR \
   --build-arg DEEPSPEED_VERSION=$DEEPSPEED_VERSION \
   --build-arg DOCKER_TAG=$DOCKER_TAG \
   --build-arg DOCKER_REPOSITORY=$DOCKER_REPOSITORY \
