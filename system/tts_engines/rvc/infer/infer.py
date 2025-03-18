@@ -171,7 +171,7 @@ def voice_conversion(
         return None, None
 
 
-@lru_cache
+@lru_cache(maxsize=3)
 def get_vc(weight_root, sid, file_index=None, training_data_size=10000, debug_rvc=False):
     net_g = None
     branding="AllTalk "
