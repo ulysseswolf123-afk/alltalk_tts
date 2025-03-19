@@ -26,7 +26,8 @@
         "hop_length": 130,
         "f0method": "fcpe",
         "embedder_model": "hubert",
-        "training_data_size": 45000
+        "training_data_size": 45000,
+        "model_cache_size": 1
     },
     "tgwui": {
         "tgwui_activate_tts": true,
