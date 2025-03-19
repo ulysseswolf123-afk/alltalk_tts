@@ -20,7 +20,8 @@
     "hop_length": $ENV.ALLTALK_RVC_HOP_LENGTH,
     "f0method": $ENV.ALLTALK_RVC_F0METHOD,
     "embedder_model": $ENV.ALLTALK_RVC_EMBEDDER_MODEL,
-    "training_data_size": $ENV.ALLTALK_RVC_TRAINING_DATA_SIZE
+    "training_data_size": $ENV.ALLTALK_RVC_TRAINING_DATA_SIZE,
+    "model_cache_size": $ENV.ALLTALK_RVC_MODEL_CACHE_SIZE
   },
   "api_def": {
     "api_port_number": $ENV.ALLTALK_API_PORT_NUMBER,

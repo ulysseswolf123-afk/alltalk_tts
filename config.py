@@ -38,6 +38,7 @@ class AlltalkConfigRvcSettings(BaseModel):
     f0method: str = "fcpe"
     embedder_model: str = "hubert"
     training_data_size: int = 45000
+    model_cache_size: int = 1
 
 class AlltalkConfigTgwUi(BaseModel):
     tgwui_activate_tts: bool = True

@@ -9,6 +9,8 @@ import soundfile as sf
 import librosa
 from functools import lru_cache
 
+from config import AlltalkConfig
+
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 
@@ -171,7 +173,7 @@ def voice_conversion(
         return None, None
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=AlltalkConfig.get_instance().rvc_settings.model_cache_size)
 def get_vc(weight_root, sid, file_index=None, training_data_size=10000, debug_rvc=False):
     net_g = None
     branding="AllTalk "
