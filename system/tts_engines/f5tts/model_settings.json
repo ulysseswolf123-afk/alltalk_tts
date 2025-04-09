@@ -25,7 +25,7 @@
         "def_narrator_voice": "female_01.wav",
         "deepspeed_enabled": false,
         "engine_installed": true,
-        "generationspeed_set": 0.9,
+        "generationspeed_set": 1,
         "lowvram_enabled": true,
         "pitch_set": 0,
         "repetitionpenalty_set": 10,

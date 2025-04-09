@@ -722,34 +722,36 @@ class tts_class:
             if clip_short:
                 # 1. try to find long silence for clipping
                 non_silent_segs = silence.split_on_silence(
-                    aseg, min_silence_len=1000, silence_thresh=-50, keep_silence=1000
+                    aseg, min_silence_len=1000, silence_thresh=-50, keep_silence=1000, seek_step=10
                 )
                 non_silent_wave = AudioSegment.silent(duration=0)
                 for non_silent_seg in non_silent_segs:
-                    if len(non_silent_wave) > 6000 and len(non_silent_wave + non_silent_seg) > 15000:
-                        print(f"[{self.branding}ENG] Audio is over 15s, clipping short. (1)") if self.debug_tts else None
+                    if len(non_silent_wave) > 6000 and len(non_silent_wave + non_silent_seg) > 12000:
+                        print(f"[{self.branding}ENG] Audio is over 12s, clipping short. (1)") if self.debug_tts else None
                         break
                     non_silent_wave += non_silent_seg
 
                 # 2. try to find short silence for clipping if 1. failed
-                if len(non_silent_wave) > 15000:
+                if len(non_silent_wave) > 12000:
                     non_silent_segs = silence.split_on_silence(
-                        aseg, min_silence_len=100, silence_thresh=-40, keep_silence=1000
+                        aseg, min_silence_len=100, silence_thresh=-40, keep_silence=1000, seek_step=10
                     )
                     non_silent_wave = AudioSegment.silent(duration=0)
                     for non_silent_seg in non_silent_segs:
-                        if len(non_silent_wave) > 6000 and len(non_silent_wave + non_silent_seg) > 15000:
-                            print(f"[{self.branding}ENG] Audio is over 15s, clipping short. (2)") if self.debug_tts else None
+                        if len(non_silent_wave) > 6000 and len(non_silent_wave + non_silent_seg) > 12000:
+                            print(f"[{self.branding}ENG] Audio is over 12s, clipping short. (2)") if self.debug_tts else None
                             break
                         non_silent_wave += non_silent_seg
 
                 aseg = non_silent_wave
 
                 # 3. if no proper silence found for clipping
-                if len(aseg) > 15000:
-                    aseg = aseg[:15000]
-                    print(f"[{self.branding}ENG] Audio is over 15s, clipping short. (3)") if self.debug_tts else None
+                if len(aseg) > 12000:
+                    aseg = aseg[:12000]
+                    print(f"[{self.branding}ENG] Audio is over 12s, clipping short. (3)") if self.debug_tts else None
 
+            # Add the silence removal function
+            aseg = self.remove_silence_edges(aseg) + AudioSegment.silent(duration=50)
             aseg.export(f.name, format="wav")
             ref_audio = f.name
 
@@ -761,6 +763,36 @@ class tts_class:
                 ref_text += ". "
 
         return ref_audio, ref_text
+
+    def remove_silence_edges(self, audio, silence_threshold=-42):
+        try:
+            # Remove silence from the start
+            non_silent_start_idx = silence.detect_leading_silence(audio, silence_threshold=silence_threshold)
+            audio = audio[non_silent_start_idx:]
+
+            # Remove silence from the end
+            non_silent_end_duration = audio.duration_seconds
+            for ms in reversed(audio):
+                if ms.dBFS > silence_threshold:
+                    break
+                non_silent_end_duration -= 0.001
+            trimmed_audio = audio[: int(non_silent_end_duration * 1000)]
+
+            return trimmed_audio
+        except Exception as e:
+            print(f"[{self.branding}ENG] Error in remove_silence_edges: {str(e)}") if self.debug_tts else None
+            return audio  # Return original audio if there's an error
+    
+    def remove_silence_for_generated_wav(self, filename):
+        aseg = AudioSegment.from_file(filename)
+        non_silent_segs = silence.split_on_silence(
+            aseg, min_silence_len=1000, silence_thresh=-50, keep_silence=500, seek_step=10
+        )
+        non_silent_wave = AudioSegment.silent(duration=0)
+        for non_silent_seg in non_silent_segs:
+            non_silent_wave += non_silent_seg
+        aseg = non_silent_wave
+        aseg.export(filename, format="wav")
 
     async def infer_process(
         self,
@@ -779,31 +811,44 @@ class tts_class:
         device=None
     ):
         """Process text and prepare for batch inference"""
-        # Split the input text into batches
-        audio, sr = torchaudio.load(str(ref_audio))
-        max_chars = int(len(ref_text.encode("utf-8")) / (audio.shape[-1] / sr) * (25 - audio.shape[-1] / sr))
-        gen_text_batches = self.chunk_text(gen_text, max_chars=max_chars)
-        
-        for i, gen_text_batch in enumerate(gen_text_batches):
-            print(f"[{self.branding}ENG] gen_text {i}", gen_text_batch) if self.debug_tts else None
+        try:
+            # Split the input text into batches
+            audio, sr = torchaudio.load(str(ref_audio))
+            max_chars = int(len(ref_text.encode("utf-8")) / (audio.shape[-1] / sr) * (22 - audio.shape[-1] / sr))
+            gen_text_batches = self.chunk_text(gen_text, max_chars=max_chars)
+            
+            for i, gen_text_batch in enumerate(gen_text_batches):
+                print(f"[{self.branding}ENG] gen_text {i}", gen_text_batch) if self.debug_tts else None
 
-        print(f"[{self.branding}ENG] Generating audio in {len(gen_text_batches)} batches...") if self.debug_tts else None
-        
-        return await self.infer_batch_process(
-            (audio, sr),
-            ref_text,
-            gen_text_batches,
-            model_obj,
-            vocoder,
-            target_rms=target_rms,
-            cross_fade_duration=cross_fade_duration,
-            nfe_step=nfe_step,
-            cfg_strength=cfg_strength,
-            sway_sampling_coef=sway_sampling_coef,
-            speed=speed,
-            fix_duration=fix_duration,
-            device=device
-        )
+            print(f"[{self.branding}ENG] Generating audio in {len(gen_text_batches)} batches...") if self.debug_tts else None
+            
+            result = await self.infer_batch_process(
+                (audio, sr),
+                ref_text,
+                gen_text_batches,
+                model_obj,
+                vocoder,
+                target_rms=target_rms,
+                cross_fade_duration=cross_fade_duration,
+                nfe_step=nfe_step,
+                cfg_strength=cfg_strength,
+                sway_sampling_coef=sway_sampling_coef,
+                speed=speed,
+                fix_duration=fix_duration,
+                device=device
+            )
+            
+            if result is None:
+                print(f"[{self.branding}ENG] Error: No audio was generated") if self.debug_tts else None
+                # Return some default values to avoid unpacking errors
+                return np.zeros(1000), self.target_sample_rate, None
+                
+            return result
+            
+        except Exception as e:
+            print(f"[{self.branding}ENG] Error in infer_process: {str(e)}") if self.debug_tts else None
+            # Return some default values to avoid unpacking errors
+            return np.zeros(1000), self.target_sample_rate, None
 
     async def infer_batch_process(
         self,
@@ -853,6 +898,14 @@ class tts_class:
             ref_text = ref_text + " "
             
         for gen_text in gen_text_batches:
+            local_speed = speed
+            if len(gen_text.encode("utf-8")) < 10:
+                local_speed = 0.3
+                print(f"[{self.branding}Debug] Short text detected, using speed={local_speed}") if self.debug_tts else None
+            else:
+                print(f"[{self.branding}Debug] Using speed={local_speed}") if self.debug_tts else None
+                    
+            
             # Prepare the text
             text_list = [ref_text + gen_text]
             final_text_list = convert_char_to_pinyin(text_list)
@@ -861,10 +914,14 @@ class tts_class:
             if fix_duration is not None:
                 duration = int(fix_duration * self.target_sample_rate / self.hop_length)
             else:
-                # Calculate duration
                 ref_text_len = len(ref_text.encode("utf-8"))
                 gen_text_len = len(gen_text.encode("utf-8"))
-                duration = ref_audio_len + int(ref_audio_len / ref_text_len * gen_text_len / speed)
+                print(f"[{self.branding}Debug] ref_text_len={ref_text_len}, gen_text_len={gen_text_len}") if self.debug_tts else None
+                print(f"[{self.branding}Debug] ref_audio_len={ref_audio_len}") if self.debug_tts else None
+                estimated_duration = ref_audio_len + int(ref_audio_len / ref_text_len * gen_text_len / local_speed)
+                print(f"[{self.branding}Debug] Estimated duration={estimated_duration} frames") if self.debug_tts else None
+                duration = ref_audio_len + int(ref_audio_len / ref_text_len * gen_text_len / local_speed)
+
 
             # inference
             with torch.inference_mode():
@@ -878,19 +935,13 @@ class tts_class:
                 )
 
                 # Handle precision for post-processing
-                if self.device == 'cuda':
-                    generated = generated.half()
-                else:
-                    generated = generated.float()
-
+                generated = generated.to(torch.float32)
                 generated = generated[:, ref_audio_len:, :]
                 generated_mel_spec = generated.permute(0, 2, 1)
                 
                 # Convert to the correct precision for vocoder
-                if self.device == 'cuda':
+                if device == 'cuda':
                     generated_mel_spec = generated_mel_spec.half()
-                else:
-                    generated_mel_spec = generated_mel_spec.float()
                     
                 generated_wave = vocoder.decode(generated_mel_spec)
                 if rms < target_rms:
@@ -903,6 +954,11 @@ class tts_class:
                 spectrograms.append(generated_mel_spec[0].cpu().numpy())
 
         # Combine all generated waves with cross-fading
+        if not generated_waves:
+            # Handle the case where no waves were generated
+            print(f"[{self.branding}ENG] Warning: No audio was generated") if self.debug_tts else None
+            return None, self.target_sample_rate, None
+
         if cross_fade_duration <= 0:
             final_wave = np.concatenate(generated_waves)
         else:
@@ -938,7 +994,7 @@ class tts_class:
                 final_wave = new_wave
 
         # Create a combined spectrogram
-        combined_spectrogram = np.concatenate(spectrograms, axis=1)
+        combined_spectrogram = np.concatenate(spectrograms, axis=1) if spectrograms else None
 
         return final_wave, self.target_sample_rate, combined_spectrogram
 
@@ -1083,6 +1139,8 @@ class tts_class:
             )
             
             text = self.process_text_for_tts(text)
+            speed_value = float(speed)
+            print(f"[{self.branding}Debug] Using speed setting: {speed_value}") if self.debug_tts else None
             
             # Generate the audio using infer_process
             final_wave, final_sample_rate, _ = await self.infer_process(
@@ -1096,7 +1154,7 @@ class tts_class:
                 nfe_step=self.nfe_step,
                 cfg_strength=self.cfg_strength,
                 sway_sampling_coef=self.sway_sampling_coef,
-                speed=float(speed),
+                speed=speed_value,
                 fix_duration=None,
                 device=self.device
             )
