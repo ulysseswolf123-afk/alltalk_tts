@@ -76,7 +76,7 @@ RUN <<EOR
   conda activate alltalk
   mkdir -p ${ALLTALK_DIR}/pip_cache
   pip install --no-cache-dir --cache-dir=${ALLTALK_DIR}/pip_cache \
-      torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu${CUDA_SHORT_VERSION_NO_DOT}
+      torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu${CUDA_SHORT_VERSION_NO_DOT}
 
   if [ $? -ne 0 ] ; then
     echo "Failed to install pip dependencies: $RESULT"
