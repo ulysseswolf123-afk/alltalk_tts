@@ -94,7 +94,7 @@ RUN <<EOR
     # Download DeepSpeed wheel if it was not built locally:
     if [ -z "${DEEPSPEED_WHEEL}" ] || [ ! -f $DEEPSPEED_WHEEL ] ; then
       echo "Downloading pre-built DeepSpeed wheel"
-      CURL_ERROR=$( { curl --output-dir /tmp/deepspeed -fLO "https://github.com/erew123/alltalk_tts/releases/download/DeepSpeed-for-docker/deepspeed-0.16.2+b344c04d-cp311-cp311-linux_x86_64.whl" ; } 2>&1 )
+      CURL_ERROR=$( { curl --output-dir /tmp/deepspeed -fLO "https://github.com/erew123/alltalk_tts/releases/download/DeepSpeed-for-docker/deepspeed-0.17.2+15f054d9-cp311-cp311-linux_x86_64.whl" ; } 2>&1 )
       if [ $? -ne 0 ] ; then
         echo "Failed to download DeepSpeed: $CURL_ERROR"
         exit 1
