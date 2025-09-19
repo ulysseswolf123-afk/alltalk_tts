@@ -41,9 +41,10 @@ python-multipart
 hangul_romanize
 word2number
 cutlet==0.4.0
-fugashi==1.3.1
+fugashi>=1.3.1
 piper-tts; sys_platform == "linux"
 plotly==5.24.1
 scipy==1.14.1
 pyOpenSSL>=24.2.1
 langdetect>=1.0.9
+
